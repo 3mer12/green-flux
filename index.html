@@ -710,7 +710,9 @@ html[lang="en"] .hero h1{line-height:1.15}
     'err.email': 'Please enter a valid email address.',
     'err.message': 'Please write a message of at least ten characters.',
     'form.fix': 'Please correct the highlighted fields.',
-    'form.ok': 'Your details look good. This form is not connected to a server, so you can finish sending your message directly through WhatsApp.',
+    'form.sending': 'Sending your message\u2026',
+    'form.sent': 'Your message was sent successfully. Thank you for contacting us.',
+    'form.fail': 'We could not send your message right now. You can send it directly through WhatsApp.',
     'form.wa': 'Finish sending via WhatsApp',
     'wa.hello': 'Hello, I am',
 
@@ -753,7 +755,9 @@ html[lang="en"] .hero h1{line-height:1.15}
   AR['err.email'] = 'يرجى إدخال بريد إلكتروني صحيح.';
   AR['err.message'] = 'يرجى كتابة رسالة لا تقل عن عشرة أحرف.';
   AR['form.fix'] = 'يرجى تصحيح الحقول المحددة.';
-  AR['form.ok'] = 'بياناتك سليمة. هذا النموذج غير متصل بخادم، لذا يمكنك إكمال إرسال رسالتك مباشرة عبر واتساب.';
+  AR['form.sending'] = 'جارٍ إرسال رسالتك…';
+  AR['form.sent'] = 'تم إرسال رسالتك بنجاح. شكراً لتواصلك معنا.';
+  AR['form.fail'] = 'تعذّر إرسال الرسالة الآن. يمكنك إرسالها مباشرة عبر واتساب.';
   AR['form.wa'] = 'إكمال الإرسال عبر واتساب';
   AR['wa.hello'] = 'مرحباً، أنا';
 
@@ -897,11 +901,11 @@ html[lang="en"] .hero h1{line-height:1.15}
     status.innerHTML = '';
     if (!statusState) { status.hidden = true; return; }
     status.hidden = false;
-    status.className = 'form-status' + (statusState === 'fix' ? ' is-error' : '');
+    status.className = 'form-status' + (statusState === 'fix' || statusState === 'fail' ? ' is-error' : '');
     var p = document.createElement('p');
-    p.textContent = t(statusState === 'fix' ? 'form.fix' : 'form.ok');
+    p.textContent = t({ fix: 'form.fix', sending: 'form.sending', sent: 'form.sent', fail: 'form.fail' }[statusState]);
     status.appendChild(p);
-    if (statusState === 'ok') {
+    if (statusState === 'fail') {
       var a = document.createElement('a');
       a.className = 'btn btn-solid';
       a.href = waLink();
@@ -924,7 +928,7 @@ html[lang="en"] .hero h1{line-height:1.15}
       showField(name);
     });
     el.addEventListener('input', function () {
-      if (statusState === 'ok') { statusState = null; renderStatus(); }
+      if (statusState === 'fail' || statusState === 'sent') { statusState = null; renderStatus(); }
       if (touched[name]) { errors[name] = check(name); showField(name); }
     });
   });
@@ -943,10 +947,48 @@ html[lang="en"] .hero h1{line-height:1.15}
       renderStatus();
       fields[firstBad].el.focus();
     } else {
-      statusState = 'ok';
-      renderStatus();
+      sendMessage();
     }
   });
+
+  /* إرسال الرسالة إلى البريد عبر خدمة FormSubmit */
+  var submitBtn = form.querySelector('button[type="submit"]');
+  var sending = false;
+  function sendMessage() {
+    if (sending) return;
+    sending = true;
+    submitBtn.disabled = true;
+    statusState = 'sending';
+    renderStatus();
+    fetch('https://formsubmit.co/ajax/aalysry4@gmail.com', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        name: fields.name.el.value.trim(),
+        email: fields.email.el.value.trim(),
+        message: fields.message.el.value.trim(),
+        _subject: 'رسالة جديدة من موقع التدفق الأخضر GREEN FLUX',
+        _template: 'table',
+        _captcha: 'false',
+        _honey: ''
+      })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (res && (res.success === true || res.success === 'true')) {
+        statusState = 'sent';
+        form.reset();
+        touched = {};
+        errors = {};
+      } else {
+        statusState = 'fail';
+      }
+    }).catch(function () {
+      statusState = 'fail';
+    }).then(function () {
+      sending = false;
+      submitBtn.disabled = false;
+      renderStatus();
+    });
+  }
 
   /* ---------- السنة الحالية + اللغة المحفوظة ---------- */
   $('#year').textContent = String(new Date().getFullYear());
